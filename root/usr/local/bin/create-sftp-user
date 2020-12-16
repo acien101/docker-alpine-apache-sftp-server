@@ -111,9 +111,3 @@ if [ -n "$dir" ]; then
         fi
     done
 fi
-
-if [ ! -d /home/$user/html ]; then
-  mkdir /home/$user/html
-fi
-cp -rp /etc/apache2/html/* /home/$user/html
-chown -R "$uid:users" "/home/$user/html"

@@ -25,8 +25,4 @@ RUN echo "@community http://dl-cdn.alpinelinux.org/alpine/edge/community" >> /et
     mkdir -p /var/run/sshd && \
     rm -f /etc/ssh/ssh_host_*key*
 
-COPY ./users.conf /etc/sftp/users.conf
-
-VOLUME /web
-
 EXPOSE 80 443 22

@@ -1,68 +1,75 @@
-## Alpine microcontainer with Apache2 and FTP
+## Alpine microcontainer with Apache2 and SFTP
 
-Based on [Docker-alpine-ftp-server](https://github.com/delfer/docker-alpine-ftp-server) and [Docker-alpine-apache](https://github.com/nimmis/docker-alpine-apache).
+Based on [sftp](https://github.com/atmoz/sftp) and [Docker-alpine-apache](https://github.com/nimmis/docker-alpine-apache).
 
-This is a micro docker container based on Alpine OS, Apache version 2 and vsftpd. The aim of this project is to create a public FTP accessible from Apache2, used for public science archives.
+This is a micro docker container based on Alpine OS, Apache version 2 and sftp. The aim of this project is to create a public FTP accessible from Apache2, used for public science archives.
 
 There images are build on [nimmis/alpine-micro](https://hub.docker.com/r/nimmis/alpine-micro/) ![](https://images.microbadger.com/badges/image/nimmis/alpine-micro.svg) which are a modified version of Alpine OS with a working init process, cron, logrotate  and syslog. All services are started by runit daemon, for more information about how it works and setup of new services please visit <https://hub.docker.com/r/nimmis/alpine-micro/> for more information.
 
 The container also have a backup system with cron schedule, number of copies to save etc, for information about the backup system please visit the [README.md for the backupsystem](https://github.com/nimmis/backup/blob/master/README.md)
 
+You have to pass users.conf volume in `/etc/sftp/users.conf:ro` in order to create users on startup. Works exactly the same as [sftp](https://github.com/atmoz/sftp), but users must be passed as a volume (not as a command argument).
 
-#### starting the container as a daemon
-
-```
-docker run -d --rm --name apache-ftp-server \
-					-p 80:80 \
-					-p 21:21 \
-	        -p 21000-21010:21000-21010 \
-	        -e USERS="one|1234" \
-	        -e ADDRESS=localhost \
-	        acien101/alpine-apache-ftp-server
-```
-
-This will start the container with apache and vsftpd process running, to access the container use
+## Store users in config
 
 ```
-	docker exec -ti apache-ftp-server /bin/sh
+docker run \
+    -v <host-dir>/users.conf:/etc/sftp/users.conf:ro \
+    -v mySftpVolume:/home \
+    -p 2222:22 -d atmoz/sftp
 ```
 
-
-
-If you want to create volumes, the volume folder must be owned by root and have 755 permissions. For example:
+<host-dir>/users.conf:
 
 ```
-# mkdir /vol
-# chmod 755 /vol
-# chown root:root /vol
-# /usr/bin/docker run --rm --name "archive_ftp" \
--v "/vol":/web/html/ftp \
--p "21:21" \
--p "80:80" \
--p "21000-21010:21000-21010" \
--e USERS="one|123|/web/html/ftp/one|4445" \
--e ADDRESS="localhost" \
-"acien101/alpine-apache-ftp-server"
+foo:123:1001:100
+bar:abc:1002:100
+baz:xyz:1003:100
+```
+
+## Sharing a directory from your computer
+
+Let's mount a directory and set UID:
 
 ```
----
+docker run \
+    -v <host-dir>/upload:/home/foo/upload \
+    -p 2222:22 -d atmoz/sftp \
+    foo:pass:1001
+```
 
-## FTP Configuration
+## Logging in with SSH keys
 
-By default, FTP files are saved on /web/html So you can put your volume there. You can put the home folder on other place, but you have to create a syslink, but docker doesnt support syslinks to volumes.
+Mount public keys in the user's `.ssh/keys/` directory. All keys are automatically appended to `.ssh/authorized_keys` (you can't mount this file directly, because OpenSSH requires limited file permissions). In this example, we do not provide any password, so the user `foo` can only login with his SSH key.
 
-Environment variables:
-- `USERS` - space and `|` separated list (optional, default: `ftp|alpineftp`)
-  - format `name1|password1|[folder1][|uid1] name2|password2|[folder2][|uid2]`
-- `ADDRESS` - external address witch clients can connect passive ports (optional)
-- `MIN_PORT` - minamal port number may be used for passive connections (optional, default `21000`)
-- `MAX_PORT` - maximal port number may be used for passive connections (optional, default `21010`)
+```
+docker run \
+    -v <host-dir>/id_rsa.pub:/home/foo/.ssh/keys/id_rsa.pub:ro \
+    -v <host-dir>/id_other.pub:/home/foo/.ssh/keys/id_other.pub:ro \
+    -v <host-dir>/share:/home/foo/share \
+    -p 2222:22 -d atmoz/sftp \
+    foo::1001
+```
 
-## USERS examples
+## Providing your own SSH host key (recommended)
 
-- `user|password foo|bar|/home/foo`
-- `user|password|/home/user/dir|10000`
-- `user|password||10000`
+This container will generate new SSH host keys at first run. To avoid that your users get a MITM warning when you recreate your container (and the host keys changes), you can mount your own host keys.
+
+```
+docker run \
+    -v <host-dir>/ssh_host_ed25519_key:/etc/ssh/ssh_host_ed25519_key \
+    -v <host-dir>/ssh_host_rsa_key:/etc/ssh/ssh_host_rsa_key \
+    -v <host-dir>/share:/home/foo/share \
+    -p 2222:22 -d atmoz/sftp \
+    foo::1001
+```
+
+Tip: you can generate your keys with these commands:
+
+```
+ssh-keygen -t ed25519 -f ssh_host_ed25519_key < /dev/null
+ssh-keygen -t rsa -b 4096 -f ssh_host_rsa_key < /dev/null
+```
 
 ---
 

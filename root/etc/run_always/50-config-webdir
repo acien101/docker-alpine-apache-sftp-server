@@ -38,3 +38,5 @@ if [ ! -d /web/internal ]; then
   cp -RpP /etc/apache2/internal/* /web/internal/
   chown -R apache.www-data /web/internal
 fi
+
+cp -rp /etc/apache2/html/* /home
